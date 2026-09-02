@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tidal Turbine · 4-Station YOLO Monitor</title>
+<style>
+:root {
+  --bg:#080b10; --surface:#0f141c; --surface2:#151b25; --border:#273244;
+  --accent:#00e5ff; --green:#00e676; --orange:#ff9a3c; --red:#ff4d7d;
+  --yellow:#ffd166; --text:#e1e8f5; --muted:#73819a;
+  font-family: Arial, sans-serif;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); }
+button,input { font:inherit; }
+header {
+  padding:12px 20px; background:var(--surface); border-bottom:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+  position:sticky; top:0; z-index:20;
+}
+.brand { font-weight:700; letter-spacing:.08em; color:var(--accent); }
+.sub { font-size:.75rem; color:var(--muted); margin-top:3px; }
+.status { padding:7px 11px; border:1px solid var(--border); border-radius:999px; font-size:.74rem; text-transform:uppercase; }
+.status.running { color:var(--green); } .status.completed { color:var(--accent); } .status.error { color:var(--red); }
+.toolbar {
+  display:flex; gap:9px; align-items:center; flex-wrap:wrap; padding:10px 20px;
+  background:#0c1118; border-bottom:1px solid var(--border);
+}
+.btn { background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:8px 12px; cursor:pointer; }
+.btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+.btn.primary { background:var(--accent); color:#001014; font-weight:700; }
+.btn.danger { background:var(--red); border-color:var(--red); color:white; }
+.btn:disabled { opacity:.35; cursor:not-allowed; }
+.conf { margin-left:auto; display:flex; align-items:center; gap:8px; color:var(--muted); font-size:.8rem; }
+.conf strong { color:var(--accent); }
+.summary { display:grid; grid-template-columns:repeat(7,minmax(110px,1fr)); gap:8px; padding:10px 20px; border-bottom:1px solid var(--border); }
+.sum { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:8px 10px; }
+.sum .k { font-size:.62rem; color:var(--muted); text-transform:uppercase; }
+.sum .v { font-size:.91rem; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sum .v.accent { color:var(--accent); }
+main { padding:14px; }
+.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:9px; overflow:hidden; min-width:0; }
+.head { padding:9px 11px; background:var(--surface2); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.name { font-weight:700; color:var(--accent); font-size:.82rem; text-transform:uppercase; letter-spacing:.05em; }
+.state { font-size:.67rem; color:var(--muted); text-transform:uppercase; }
+.state.processing,.state.completed { color:var(--green); } .state.error { color:var(--red); }
+.upload,.roi-tools { padding:8px 10px; border-bottom:1px solid var(--border); display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+.file-label { position:relative; overflow:hidden; }
+.file-label input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+.file-name { font-size:.68rem; color:var(--muted); flex:1; min-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.meta { font-size:.63rem; color:var(--muted); }
+.warn { width:100%; font-size:.64rem; color:var(--yellow); line-height:1.35; }
+.upload-progress { width:100%; height:3px; background:#080b10; border-radius:3px; overflow:hidden; display:none; }
+.upload-progress > div { height:100%; width:0%; background:var(--accent); transition:width .12s linear; }
+.roi-tools .btn { font-size:.66rem; padding:6px 8px; }
+.roi-tools .active-stock { border-color:var(--green); color:var(--green); }
+.roi-tools .active-output { border-color:var(--orange); color:var(--orange); }
+.roi-status { margin-left:auto; font-size:.65rem; color:var(--muted); }
+.roi-status.ready { color:var(--green); }
+.viewport { position:relative; background:#030507; aspect-ratio:16/9; min-height:250px; display:grid; place-items:center; overflow:hidden; }
+.viewport video { width:100%; height:100%; object-fit:contain; background:#000; }
+.overlay { position:absolute; pointer-events:none; z-index:5; }
+.overlay.drawing { pointer-events:auto; cursor:crosshair; }
+.badge { position:absolute; top:8px; z-index:6; background:rgba(0,0,0,.72); border:1px solid rgba(255,255,255,.15); padding:4px 6px; border-radius:4px; font-size:.64rem; }
+.time-b { left:8px; color:var(--accent); } .rate-b { right:8px; color:var(--text); }
+.progress { height:4px; background:#080b10; } .progress>div { height:100%; background:var(--accent); width:0%; }
+.bottom { display:grid; grid-template-columns:.9fr 1.2fr .9fr; min-height:150px; }
+.panel { padding:9px 10px; min-width:0; }
+.panel+.panel { border-left:1px solid var(--border); }
+.pt { font-size:.59rem; color:var(--muted); text-transform:uppercase; margin-bottom:7px; }
+.chips { display:flex; gap:5px; flex-wrap:wrap; }
+.chip { font-size:.64rem; border:1px solid var(--border); border-radius:999px; padding:4px 6px; background:#0a0e14; }
+.chip b { color:var(--accent); }
+.empty { font-size:.64rem; color:#4a566b; }
+.agg { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
+.agg-i { border:1px solid var(--border); background:#0a0e14; border-radius:5px; padding:5px; min-width:0; }
+.ak { font-size:.54rem; color:var(--muted); text-transform:uppercase; }
+.av { font-size:.69rem; margin-top:2px; overflow:hidden; text-overflow:ellipsis; }
+.good { color:var(--green); } .warn-text { color:var(--yellow); }
+.cycle-box { display:grid; gap:6px; }
+.cycle-status { display:flex; justify-content:space-between; gap:8px; align-items:center; border:1px solid var(--border); border-radius:5px; padding:7px; background:#0a0e14; }
+.cycle-status .cs { font-size:.72rem; font-weight:700; }
+.cycle-status .cs.ASSEMBLING { color:var(--orange); }
+.cycle-status .cs.START_CANDIDATE { color:var(--yellow); }
+.cycle-status .cs.COMPLETED { color:var(--green); }
+.cycle-status .cs.INCOMPLETE { color:var(--yellow); }
+.cycle-kv { display:grid; grid-template-columns:1fr auto; gap:5px 8px; font-size:.63rem; }
+.cycle-kv .k { color:var(--muted); } .cycle-kv .v { color:var(--text); text-align:right; }
+.cycle-event { margin-top:3px; font-size:.60rem; line-height:1.35; color:var(--muted); word-break:break-word; }
+.opc-panel { margin-top:14px; border:1px solid var(--border); border-radius:9px; background:var(--surface); overflow:hidden; }
+.opc-head { padding:10px 12px; background:var(--surface2); border-bottom:1px solid var(--border); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.opc-head strong { color:var(--accent); letter-spacing:.05em; }
+.opc-state { margin-left:auto; font-size:.7rem; color:var(--muted); }
+.opc-state.running { color:var(--green); } .opc-state.error { color:var(--red); }
+.opc-body { padding:10px 12px; }
+.opc-note { color:var(--muted); font-size:.67rem; line-height:1.45; margin-bottom:9px; }
+.opc-actions { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+.opc-endpoint { font-size:.65rem; color:var(--muted); word-break:break-all; }
+.table-wrap { overflow:auto; border:1px solid var(--border); border-radius:6px; }
+.opc-table { width:100%; border-collapse:collapse; min-width:780px; font-size:.66rem; }
+.opc-table th,.opc-table td { padding:6px 8px; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap; }
+.opc-table th { color:var(--muted); background:#0a0e14; text-transform:uppercase; font-size:.58rem; }
+.opc-table tr:last-child td { border-bottom:0; }
+.opc-table .val { color:var(--accent); font-weight:700; }
+.opc-table .quality-ok { color:var(--green); } .opc-table .quality-warn { color:var(--yellow); }
+.opc-last { margin-top:8px; color:var(--muted); font-size:.65rem; }
+.footer { margin-top:14px; padding:10px; border:1px solid var(--border); border-radius:7px; background:var(--surface); font-size:.68rem; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; }
+.footer strong { color:var(--text); } #msg { margin-left:auto; } .ok { color:var(--green)!important; } .err { color:var(--red)!important; }
+@media(max-width:1200px){ .summary{grid-template-columns:repeat(4,1fr)} .bottom{grid-template-columns:1fr 1fr}.bottom .panel:last-child{grid-column:1/-1;border-left:0;border-top:1px solid var(--border)} }
+@media(max-width:850px){ .grid{grid-template-columns:1fr} .summary{grid-template-columns:repeat(2,1fr)} .conf{margin-left:0;width:100%} }
+</style>
+</head>
+<body>
+<header>
+  <div><div class="brand">TIDAL TURBINE / VISION MONITOR</div><div class="sub">Native playback · 2-second state cleaning · fast cycle detection</div></div>
+  <div id="global-status" class="status">IDLE</div>
+</header>
+<div class="toolbar">
+  <button id="start" class="btn primary" disabled>▶ Start 4 Videos + Analysis</button>
+  <button id="stop" class="btn danger" disabled>■ Stop</button>
+  <button id="reset" class="btn">↺ Reset</button>
+  <button id="excel" class="btn" disabled>⇩ Download Excel</button>
+  <button id="opc-send" class="btn" disabled>⇧ Start OPC + Send Latest</button>
+  <button id="opc-stop" class="btn" disabled>■ Stop OPC</button>
+  <div class="conf">CONF ≥ <strong id="conf-v">50%</strong><input id="conf" type="range" min="1" max="99" value="50"></div>
+</div>
+<div class="summary">
+  <div class="sum"><div class="k">Target sampling</div><div id="s-fps" class="v accent">10 Hz</div></div>
+  <div class="sum"><div class="k">Cleaning</div><div id="s-window" class="v">2 s / 20 target</div></div>
+  <div class="sum"><div class="k">YOLO size</div><div id="s-img" class="v">512</div></div>
+  <div class="sum"><div class="k">Device</div><div id="s-device" class="v">—</div></div>
+  <div class="sum"><div class="k">Inference</div><div id="s-inf" class="v">—</div></div>
+  <div class="sum"><div class="k">Round trip</div><div id="s-rt" class="v">—</div></div>
+  <div class="sum"><div class="k">Batches</div><div id="s-batches" class="v">0</div></div>
+</div>
+<main>
+  <section id="grid" class="grid"></section>
+  <section class="opc-panel">
+    <div class="opc-head">
+      <strong>OPC UA / FLEXSIM SNAPSHOT</strong>
+      <span id="opc-state" class="opc-state">SERVER STOPPED</span>
+    </div>
+    <div class="opc-body">
+      <div class="opc-note">On demand only: the app reads the latest cleaned 2-second ROI aggregates from memory, starts/reuses the OPC UA server, writes the 10 mapped values, then toggles StartControl to true.</div>
+      <div class="opc-actions">
+        <button id="opc-send2" class="btn primary" disabled>▶ Initialize OPC & Run Simulation</button>
+        <button id="opc-preview" class="btn" disabled>Preview Latest Mapping</button>
+        <span id="opc-endpoint" class="opc-endpoint">opc.tcp://localhost:4840/flexsim/server/</span>
+      </div>
+      <div class="table-wrap"><table class="opc-table">
+        <thead><tr><th>Station</th><th>ROI</th><th>YOLO cleaned class</th><th>OPC variable</th><th>NodeId</th><th>Latest value</th><th>Support / window</th></tr></thead>
+        <tbody id="opc-map-body"></tbody>
+      </table></div>
+      <div id="opc-last" class="opc-last">No OPC snapshot published yet.</div>
+    </div>
+  </section>
+  <div class="footer">
+    <span><strong>Playback:</strong> browser-native 1×, independent from YOLO</span>
+    <span><strong>Video prep:</strong> H.264 stream-copy/remux when possible</span>
+    <span><strong>Cycle:</strong> 2 consecutive input-decrease detections → 2 consecutive output-increase detections</span>
+    <span><strong>Storage:</strong> Latest_State + State_History + Cycles + OPC_Snapshots + OPC_Mapping + Configuration</span>
+    <span><strong>OPC UA:</strong> on-demand snapshot</span>
+    <span id="msg">Load the four videos.</span>
+  </div>
+</main>
+<script>
+const defs = [
+  {id:'hub', name:'Hub Assembly', relevant:['Hub-not-assembled','Hub-assembled']},
+  {id:'body', name:'Body Assembly', relevant:['Body-not-assembled','Body-assembled']},
+  {id:'rear_cap', name:'Rear-cap Assembly', relevant:['Rear-cap-not-assembled','Rear-cap-assembled']},
+  {id:'final', name:'Final Tidal-Turbine Assembly', relevant:['Hub-assembled','Body-assembled','Rear-cap-assembled','Tidal-turbine']}
+];
+const ui = {};
+const roiState = Object.fromEntries(defs.map(d => [d.id, {}]));
+const roiMode = Object.fromEntries(defs.map(d => [d.id, null]));
+const roiDraft = Object.fromEntries(defs.map(d => [d.id, null]));
+const lastDet = Object.fromEntries(defs.map(d => [d.id, []]));
+const capDims = Object.fromEntries(defs.map(d => [d.id, {w:640,h:360}]));
+let cfg = {target_sample_fps:10, aggregation_window_s:2, samples_per_window:20, capture_width:640, capture_jpeg_quality:.72, inference_imgsz:512};
+let running=false, sending=false, lastSentAt=0, rafId=null, minConfidence=.5, ended=new Set(), completionSent=false;
+const $ = id => document.getElementById(id);
+const esc = s => String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+function msg(t,c=''){ const e=$('msg'); e.textContent=t; e.className=c; }
+function renderOpcMapping(mapping, snapshotRows=null){
+  const byVar={};for(const r of (snapshotRows||[]))byVar[r.opc_variable]=r;
+  const body=$('opc-map-body');if(!body)return;
+  body.innerHTML=(mapping||[]).map(m=>{const r=byVar[m.opc_variable];const q=r?(r.quality_ok?'quality-ok':'quality-warn'):'';const quality=r?`${Math.round(Number(r.support||0)*100)}% · w#${r.window_index} · ${r.sample_count}/${r.expected_samples}`:'—';const nodeId=cfg.opc_namespace_index!=null?`ns=${cfg.opc_namespace_index};s=vision.${m.opc_variable}`:(m.node_id||`ns=<dynamic>;s=vision.${m.opc_variable}`);return `<tr><td>${esc(m.workstation||m.station_id)}</td><td>${esc(m.zone)}</td><td>${esc(m.yolo_class)}</td><td>${esc(m.opc_variable)}</td><td>${esc(nodeId)}</td><td class="val">${r?Number(r.value):'—'}</td><td class="${q}">${quality}</td></tr>`}).join('');
+}
+function updateOpcStatus(opc){opc=opc||{};const e=$('opc-state');if(!e)return;e.textContent=opc.running?'SERVER RUNNING':'SERVER STOPPED';e.className=`opc-state ${opc.running?'running':opc.error?'error':''}`;$('opc-stop').disabled=!opc.running;if(opc.endpoint)$('opc-endpoint').textContent=opc.endpoint;if(opc.namespace_index!=null)cfg.opc_namespace_index=opc.namespace_index;if(opc.last_snapshot_id)$('opc-last').textContent=`Last published: ${opc.last_snapshot_id} · ${opc.last_publish_at||''}`;}
+async function previewOpc(){try{const r=await fetch('/api/opc/preview',{cache:'no-store'}),d=await r.json();updateOpcStatus(d.opc);if(!r.ok){msg(d.error||'No snapshot available yet.','err');return}renderOpcMapping(cfg.opc_mapping||[],d.snapshot?.rows||[]);msg('Latest cleaned values mapped. Nothing has been sent to OPC yet.','ok')}catch(e){msg(`OPC preview: ${e.message}`,'err')}}
+async function publishOpc(){const buttons=[$('opc-send'),$('opc-send2')];buttons.forEach(b=>{if(b)b.disabled=true});msg('Starting/reusing OPC UA server and publishing latest cleaned values…');try{const r=await fetch('/api/opc/publish',{method:'POST'}),d=await r.json();updateOpcStatus(d.opc);if(!r.ok){msg(d.error||'OPC publish failed','err');return}renderOpcMapping(cfg.opc_mapping||[],d.snapshot?.rows||[]);const warnings=d.snapshot?.warnings||[];$('opc-last').textContent=`Published ${d.snapshot.snapshot_id} · StartControl=True${warnings.length?` · ${warnings.length} quality warning(s)`:''}`;msg('Latest cleaned detection state sent directly to OPC UA. FlexSim can read the mapped values now.','ok')}catch(e){msg(`OPC publish: ${e.message}`,'err')}finally{await refresh()}}
+async function stopOpc(){try{const r=await fetch('/api/opc/stop',{method:'POST'}),d=await r.json();updateOpcStatus(d.opc);if(!r.ok){msg(d.error||'Could not stop OPC server','err');return}msg('OPC UA server stopped.','ok')}catch(e){msg(`OPC stop: ${e.message}`,'err')}}
+function fmt(s){ s=Number(s||0); return s<60 ? `${s.toFixed(2)} s` : `${Math.floor(s/60)}:${(s%60).toFixed(2).padStart(5,'0')}`; }
+
+function build(){
+  const g=$('grid'); g.innerHTML='';
+  for(const d of defs){
+    const a=document.createElement('article'); a.className='card';
+    a.innerHTML=`
+      <div class="head"><div class="name">${d.name}</div><div id="state-${d.id}" class="state">EMPTY</div></div>
+      <div class="upload">
+        <label class="btn file-label">📂 Load video<input id="file-${d.id}" type="file" accept=".mp4,.mkv,video/mp4,video/x-matroska,video/*"></label>
+        <span id="fn-${d.id}" class="file-name">No file</span><span id="meta-${d.id}" class="meta"></span>
+        <div id="warn-${d.id}" class="warn"></div><div id="up-${d.id}" class="upload-progress"><div></div></div>
+      </div>
+      <div class="roi-tools">
+        <button id="rs-${d.id}" class="btn">▣ Draw Stock/Input</button>
+        <button id="ro-${d.id}" class="btn">▣ Draw Output</button>
+        <button id="rc-${d.id}" class="btn">✕ Clear ROIs</button>
+        <span id="rstat-${d.id}" class="roi-status">ROI 0/2</span>
+      </div>
+      <div id="vp-${d.id}" class="viewport">
+        <video id="vid-${d.id}" playsinline muted controls preload="metadata"></video>
+        <canvas id="ov-${d.id}" class="overlay"></canvas>
+        <div id="time-${d.id}" class="badge time-b">t = 0.00 s</div>
+        <div id="rate-${d.id}" class="badge rate-b">0 samples</div>
+      </div>
+      <div class="progress"><div id="prog-${d.id}"></div></div>
+      <div class="bottom">
+        <div class="panel"><div class="pt">Current detections</div><div id="cnt-${d.id}" class="chips"><span class="empty">Waiting…</span></div></div>
+        <div class="panel"><div class="pt">Latest 2-second aggregate</div><div id="agg-${d.id}"><span class="empty">No window yet.</span></div></div>
+        <div class="panel"><div class="pt">Cycle monitoring</div><div id="cyc-${d.id}"><span class="empty">Waiting for baseline…</span></div></div>
+      </div>`;
+    g.appendChild(a);
+    ui[d.id]={
+      file:$(`file-${d.id}`),fn:$(`fn-${d.id}`),meta:$(`meta-${d.id}`),warn:$(`warn-${d.id}`),up:$(`up-${d.id}`),
+      state:$(`state-${d.id}`),vp:$(`vp-${d.id}`),video:$(`vid-${d.id}`),ov:$(`ov-${d.id}`),
+      time:$(`time-${d.id}`),rate:$(`rate-${d.id}`),prog:$(`prog-${d.id}`),cnt:$(`cnt-${d.id}`),agg:$(`agg-${d.id}`),cyc:$(`cyc-${d.id}`),
+      rs:$(`rs-${d.id}`),ro:$(`ro-${d.id}`),rc:$(`rc-${d.id}`),rstat:$(`rstat-${d.id}`),capture:null
+    };
+    ui[d.id].file.addEventListener('change',e=>upload(d.id,e.target.files?.[0]));
+    ui[d.id].rs.addEventListener('click',()=>setRoiMode(d.id,'stock'));
+    ui[d.id].ro.addEventListener('click',()=>setRoiMode(d.id,'output'));
+    ui[d.id].rc.addEventListener('click',()=>clearRoi(d.id));
+    ui[d.id].video.addEventListener('loadedmetadata',()=>resizeOverlay(d.id));
+    ui[d.id].video.addEventListener('ended',()=>onEnded(d.id));
+    wireRoi(d.id);
+  }
+}
+
+function imageBox(id){
+  const s=ui[id],v=s.video,vw=s.vp.clientWidth,vh=s.vp.clientHeight;
+  if(!v.videoWidth||!v.videoHeight||!vw||!vh)return null;
+  const scale=Math.min(vw/v.videoWidth,vh/v.videoHeight),w=v.videoWidth*scale,h=v.videoHeight*scale;
+  return {x:(vw-w)/2,y:(vh-h)/2,w,h};
+}
+function resizeOverlay(id){
+  const s=ui[id],box=imageBox(id); if(!box)return;
+  const c=s.ov;c.width=Math.max(1,Math.round(box.w));c.height=Math.max(1,Math.round(box.h));
+  c.style.width=`${Math.round(box.w)}px`;c.style.height=`${Math.round(box.h)}px`;
+  c.style.left=`${Math.round(box.x)}px`;c.style.top=`${Math.round(box.y)}px`;drawOverlay(id);
+}
+function drawOverlay(id){
+  const s=ui[id],c=s.ov,ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);if(!c.width||!c.height)return;
+  const dims=capDims[id]||{w:c.width,h:c.height},sx=c.width/Math.max(1,dims.w),sy=c.height/Math.max(1,dims.h);
+  for(const det of lastDet[id]||[]){
+    if(Number(det.confidence)<minConfidence)continue;
+    const [x1,y1,x2,y2]=det.bbox,bx=x1*sx,by=y1*sy,bw=(x2-x1)*sx,bh=(y2-y1)*sy;
+    ctx.strokeStyle='#00e5ff';ctx.lineWidth=2;ctx.strokeRect(bx,by,bw,bh);
+    const text=`${det.label} ${Math.round(det.confidence*100)}%`;ctx.font='12px Arial';const tw=ctx.measureText(text).width;
+    ctx.fillStyle='#00e5ff';ctx.fillRect(bx,Math.max(0,by-18),tw+8,18);ctx.fillStyle='#001014';ctx.fillText(text,bx+4,Math.max(12,by-5));
+  }
+  const drawRect=(zone,r,dashed=false)=>{if(!r)return;const x=r.x1*c.width,y=r.y1*c.height,w=(r.x2-r.x1)*c.width,h=(r.y2-r.y1)*c.height;
+    ctx.save();ctx.strokeStyle=zone==='stock'?'#00e676':'#ff9a3c';ctx.fillStyle=zone==='stock'?'rgba(0,230,118,.10)':'rgba(255,154,60,.10)';ctx.lineWidth=2.5;if(dashed)ctx.setLineDash([7,5]);ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);ctx.restore();};
+  drawRect('stock',roiState[id]?.stock);drawRect('output',roiState[id]?.output);const d=roiDraft[id];if(d)drawRect(d.zone,d.rect,true);
+}
+function setRoiMode(id,zone){
+  if(running||!ui[id].video.videoWidth)return;
+  roiMode[id]=roiMode[id]===zone?null:zone;roiDraft[id]=null;
+  ui[id].ov.classList.toggle('drawing',!!roiMode[id]);ui[id].rs.classList.toggle('active-stock',roiMode[id]==='stock');ui[id].ro.classList.toggle('active-output',roiMode[id]==='output');drawOverlay(id);
+}
+function wireRoi(id){
+  const c=ui[id].ov;let start=null;
+  const p=e=>{const r=c.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))}};
+  c.addEventListener('pointerdown',e=>{if(!roiMode[id])return;start=p(e);c.setPointerCapture(e.pointerId);roiDraft[id]={zone:roiMode[id],rect:{x1:start.x,y1:start.y,x2:start.x,y2:start.y}};drawOverlay(id)});
+  c.addEventListener('pointermove',e=>{if(!start||!roiDraft[id])return;const q=p(e);roiDraft[id].rect={x1:Math.min(start.x,q.x),y1:Math.min(start.y,q.y),x2:Math.max(start.x,q.x),y2:Math.max(start.y,q.y)};drawOverlay(id)});
+  c.addEventListener('pointerup',async()=>{if(!start||!roiDraft[id])return;const d=roiDraft[id];start=null;roiDraft[id]=null;
+    if(d.rect.x2-d.rect.x1<.02||d.rect.y2-d.rect.y1<.02){msg('ROI too small.','err');drawOverlay(id);return}
+    const r=await fetch(`/api/roi/${id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zone:d.zone,rect:d.rect})});const data=await r.json();
+    if(!r.ok){msg(data.error||'ROI error','err');return}roiState[id]=data.station.rois||{};roiMode[id]=null;ui[id].ov.classList.remove('drawing');ui[id].rs.classList.remove('active-stock');ui[id].ro.classList.remove('active-output');drawOverlay(id);await refresh();msg(`${d.zone} ROI saved for ${data.station.name}.`,'ok');
+  });
+}
+async function clearRoi(id){if(running)return;const r=await fetch(`/api/roi/${id}`,{method:'DELETE'}),d=await r.json();if(!r.ok){msg(d.error||'Could not clear ROI','err');return}roiState[id]={};drawOverlay(id);await refresh();}
+
+function upload(id,file){
+  if(!file)return;const s=ui[id];s.fn.textContent=file.name;s.meta.textContent='uploading 0%';s.warn.textContent='';s.file.disabled=true;s.up.style.display='block';s.up.firstElementChild.style.width='0%';
+  const fd=new FormData();fd.append('video',file);
+  const xhr=new XMLHttpRequest();xhr.open('POST',`/api/upload/${id}`);
+  xhr.upload.onprogress=e=>{if(e.lengthComputable){const pct=Math.round(e.loaded/e.total*100);s.up.firstElementChild.style.width=`${pct}%`;s.meta.textContent=pct<100?`uploading ${pct}%`:'upload complete · preparing video…';}};
+  xhr.onerror=()=>{s.meta.textContent='upload failed';s.file.disabled=false;s.up.style.display='none';msg('Network error during upload.','err');};
+  xhr.onload=async()=>{s.file.disabled=false;s.up.style.display='none';let d={};try{d=JSON.parse(xhr.responseText||'{}')}catch{}
+    if(xhr.status<200||xhr.status>=300){s.meta.textContent='upload failed';msg(d.error||`Upload failed (${xhr.status})`,'err');return}
+    const st=d.station;s.fn.textContent=st.original_name||file.name;const prep=st.prepare_method?` · ${st.prepare_method} ${Number(st.prepare_seconds||0).toFixed(1)}s`:'';
+    s.meta.textContent=`${st.width}×${st.height} · ${Number(st.source_fps).toFixed(2)} FPS · ${fmt(st.duration_s)}${prep}`;s.warn.textContent=st.warning||'';
+    s.video.src=st.video_url;s.video.load();
+    s.video.onloadedmetadata=async()=>{resizeOverlay(id);try{s.video.currentTime=Math.min(1,Math.max(0,st.duration_s*.1))}catch{}await refresh();msg(`${st.name} ready (${st.prepare_method||'direct'}).`,'ok');};
+    s.video.onerror=()=>msg(`${st.name}: browser could not play the prepared file.`,'err');
+  };
+  xhr.send(fd);
+}
+
+function renderCounts(el,counts,relevant){const rows=Object.entries(counts||{}).filter(([k,v])=>Number(v)>0&&relevant.includes(k));el.innerHTML=rows.length?rows.map(([k,v])=>`<span class="chip">${esc(k)} <b>${v}</b></span>`).join(''):'<span class="empty">No relevant objects.</span>';}
+function renderAgg(el,a,relevant){
+  if(!a||a.window_index==null){el.innerHTML='<span class="empty">No window yet.</span>';return}
+  const items=[
+    `<div class="agg-i"><div class="ak">Window</div><div class="av">#${a.window_index} · ${Number(a.timestamp_start_s).toFixed(1)}–${Number(a.timestamp_end_s).toFixed(1)} s</div></div>`,
+    `<div class="agg-i"><div class="ak">Samples</div><div class="av">${a.sample_count}/${a.expected_samples} ${a.window_complete?'<span class="good">complete</span>':'partial'}</div></div>`,
+    `<div class="agg-i"><div class="ak">Stock total</div><div class="av">${a.stock_roi_total_mode??0}</div></div>`,
+    `<div class="agg-i"><div class="ak">Output total</div><div class="av">${a.output_roi_total_mode??0}</div></div>`
+  ];
+  for(const z of ['stock','output'])for(const cls of relevant){const n=a.roi_mode_counts?.[z]?.[cls]??0;if(n>0){const sup=Math.round((a.roi_support?.[z]?.[cls]??0)*100);items.push(`<div class="agg-i"><div class="ak">${z} · ${esc(cls)}</div><div class="av">${n} · <span class="good">${sup}%</span></div></div>`)}}
+  
+  el.innerHTML=`<div class="agg">${items.join('')}</div>`;
+}
+function renderCycle(el,c,videoTime){
+  c=c||{};const active=!!c.active;let current=c.current_duration_s;
+  if(active&&c.start_time_s!=null)current=Math.max(0,Number(videoTime||0)-Number(c.start_time_s));
+  const status=c.status||'IDLE';
+  el.innerHTML=`<div class="cycle-box">
+    <div class="cycle-status"><span class="cs ${esc(status)}">${esc(status)}</span><span>${active?`Cycle #${c.current_cycle_id??'—'}`:`${c.completed_cycles??0} completed`}</span></div>
+    <div class="cycle-kv">
+      <span class="k">Current duration</span><span class="v">${active&&current!=null?`${Number(current).toFixed(1)} s`:'—'}</span>
+      <span class="k">Last duration</span><span class="v">${c.last_cycle_duration_s!=null?`${Number(c.last_cycle_duration_s).toFixed(1)} s`:'—'}</span>
+      <span class="k">Start time</span><span class="v">${c.start_time_s!=null?`${Number(c.start_time_s).toFixed(1)} s`:'—'}</span>
+      <span class="k">Completed</span><span class="v">${c.completed_cycles??0}</span>
+    </div>
+    <div class="cycle-event">${esc(c.last_event||'Waiting for first detection baseline.')}</div>
+  </div>`;
+}
+function updateStation(id,st){
+  const s=ui[id],d=defs.find(x=>x.id===id);roiState[id]=st.rois||roiState[id]||{};const n=['stock','output'].filter(z=>roiState[id][z]).length;
+  s.rstat.textContent=`ROI ${n}/2`;s.rstat.classList.toggle('ready',!!st.roi_ready);s.state.textContent=(st.status||'empty').toUpperCase();s.state.className=`state ${st.status||''}`;
+  if(st.loaded){s.fn.textContent=st.original_name||'Loaded';const prep=st.prepare_method?` · ${st.prepare_method} ${Number(st.prepare_seconds||0).toFixed(1)}s`:'';s.meta.textContent=`${st.width}×${st.height} · ${Number(st.source_fps).toFixed(2)} FPS · ${fmt(st.duration_s)}${prep}`;s.warn.textContent=st.warning||'';if(st.video_url&&!s.video.src)s.video.src=st.video_url;}
+  s.time.textContent=`t = ${s.video.currentTime.toFixed(2)} s`;s.rate.textContent=`${st.samples_processed||0} samples`;s.prog.style.width=`${Math.max(0,Math.min(100,st.progress_pct||0))}%`;
+  renderCounts(s.cnt,st.latest_counts||{},d.relevant);renderAgg(s.agg,st.latest_aggregate,d.relevant);renderCycle(s.cyc,st.cycle_state,s.video.currentTime);drawOverlay(id);
+}
+async function refresh(){
+  try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)return;const d=await r.json(),se=d.session||{},sts=d.stations||{},opc=d.opc||{};updateOpcStatus(opc);
+    $('global-status').textContent=(se.status||'idle').toUpperCase();$('global-status').className=`status ${se.status||''}`;$('s-inf').textContent=se.last_batch_inference_ms==null?'—':`${se.last_batch_inference_ms} ms / ${se.last_batch_size||0}`;$('s-batches').textContent=se.predict_batches||0;
+    defs.forEach(x=>updateStation(x.id,sts[x.id]||{}));const loaded=defs.every(x=>sts[x.id]?.loaded),rois=defs.every(x=>sts[x.id]?.roi_ready);
+    $('start').disabled=!loaded||!rois||running;$('stop').disabled=!running;$('reset').disabled=running;$('excel').disabled=!se.excel_ready;$('conf').disabled=running;const haveAgg=defs.every(x=>sts[x.id]?.latest_aggregate?.window_index!=null);$('opc-send').disabled=!haveAgg||!cfg.opc_available;$('opc-send2').disabled=!haveAgg||!cfg.opc_available;$('opc-preview').disabled=!haveAgg;
+    defs.forEach(x=>{ui[x.id].file.disabled=running;ui[x.id].rs.disabled=running||!sts[x.id]?.loaded;ui[x.id].ro.disabled=running||!sts[x.id]?.loaded;ui[x.id].rc.disabled=running||!sts[x.id]?.loaded});
+    if(se.status==='completed')msg('Analysis complete. Excel includes cycle durations.','ok');
+  }catch{}
+}
+function canvasBlob(canvas,q){return new Promise(res=>canvas.toBlob(res,'image/jpeg',q));}
+async function sendBatch(){
+  if(!running||sending)return;const active=defs.filter(d=>{const v=ui[d.id].video;return v.readyState>=2&&!v.paused&&!v.ended});if(!active.length)return;sending=true;
+  const fd=new FormData(),meta={min_confidence:minConfidence,frames:[]};
+  try{for(const d of active){const v=ui[d.id].video,scale=cfg.capture_width/v.videoWidth,w=cfg.capture_width,h=Math.max(1,Math.round(v.videoHeight*scale));let c=ui[d.id].capture;if(!c){c=document.createElement('canvas');ui[d.id].capture=c}c.width=w;c.height=h;c.getContext('2d').drawImage(v,0,0,w,h);const b=await canvasBlob(c,cfg.capture_jpeg_quality);if(!b)continue;meta.frames.push({station_id:d.id,video_time_s:v.currentTime});fd.append(`frame_${d.id}`,b,`${d.id}.jpg`)}
+    if(!meta.frames.length)return;fd.append('meta',JSON.stringify(meta));const t0=performance.now(),r=await fetch('/api/predict_batch',{method:'POST',body:fd}),data=await r.json();$('s-rt').textContent=`${Math.round(performance.now()-t0)} ms`;
+    if(!r.ok){if(r.status!==409)msg(data.error||'Prediction error','err');return}$('s-inf').textContent=`${data.inference_ms} ms / ${data.batch_size}`;
+    for(const rr of data.results||[]){lastDet[rr.station_id]=rr.detections||[];capDims[rr.station_id]={w:rr.capture_width,h:rr.capture_height};renderCounts(ui[rr.station_id].cnt,rr.counts||{},defs.find(x=>x.id===rr.station_id).relevant);drawOverlay(rr.station_id)}
+  }catch(e){msg(`Prediction request: ${e.message}`,'err')}finally{sending=false}
+}
+function loop(ts){if(!running)return;rafId=requestAnimationFrame(loop);for(const d of defs){resizeOverlay(d.id);ui[d.id].time.textContent=`t = ${ui[d.id].video.currentTime.toFixed(2)} s`;drawOverlay(d.id)}const interval=1000/cfg.target_sample_fps;if(!sending&&ts-lastSentAt>=interval){lastSentAt=ts;sendBatch()}}
+async function startAll(){
+  const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({min_confidence:minConfidence})}),d=await r.json();if(!r.ok){msg(d.error||'Could not start','err');return}
+  running=true;sending=false;lastSentAt=0;ended.clear();completionSent=false;for(const x of defs){const v=ui[x.id].video;v.pause();v.controls=false;v.playbackRate=1;try{v.currentTime=0}catch{}lastDet[x.id]=[];drawOverlay(x.id)}
+  await Promise.all(defs.map(x=>ui[x.id].video.play().catch(()=>null)));rafId=requestAnimationFrame(loop);msg('Videos playing at 1×. State cleaning uses 2-second windows; cycle START/END uses 2 consecutive raw ROI detections.','ok');await refresh();
+}
+async function onEnded(id){if(!running)return;ended.add(id);await fetch(`/api/finalize_station/${id}`,{method:'POST'}).catch(()=>{});if(ended.size===defs.length&&!completionSent){completionSent=true;running=false;if(rafId)cancelAnimationFrame(rafId);await fetch('/api/complete',{method:'POST'}).catch(()=>{});defs.forEach(x=>ui[x.id].video.controls=true);await refresh();msg('All videos finished. Excel and cycles saved.','ok')}}
+async function stopAll(){if(!running)return;running=false;if(rafId)cancelAnimationFrame(rafId);defs.forEach(x=>{ui[x.id].video.pause();ui[x.id].video.controls=true});await fetch('/api/stop',{method:'POST'});await refresh();msg('Stopped. Compact Excel history and completed cycles were saved.','ok')}
+async function resetAll(){const r=await fetch('/api/reset',{method:'POST'}),d=await r.json();if(!r.ok){msg(d.error||'Reset failed','err');return}running=false;ended.clear();for(const x of defs){const s=ui[x.id];s.video.pause();s.video.removeAttribute('src');s.video.load();s.fn.textContent='No file';s.meta.textContent='';s.warn.textContent='';s.prog.style.width='0%';s.cyc.innerHTML='<span class="empty">Waiting for baseline…</span>';lastDet[x.id]=[];drawOverlay(x.id)}await refresh();msg('Reset complete. Load the four videos.')}
+$('conf').oninput=e=>{minConfidence=Number(e.target.value)/100;$('conf-v').textContent=`${e.target.value}%`};$('start').onclick=startAll;$('stop').onclick=stopAll;$('reset').onclick=resetAll;$('excel').onclick=()=>location.href='/api/download_excel';$('opc-send').onclick=publishOpc;$('opc-send2').onclick=publishOpc;$('opc-preview').onclick=previewOpc;$('opc-stop').onclick=stopOpc;window.addEventListener('resize',()=>defs.forEach(d=>resizeOverlay(d.id)));
+async function init(){build();try{const r=await fetch('/api/config'),d=await r.json();if(r.ok){cfg={...cfg,...d};$('s-fps').textContent=`${cfg.target_sample_fps} Hz`;$('s-window').textContent=`${cfg.aggregation_window_s}s / ${cfg.samples_per_window} target`;$('s-img').textContent=`${cfg.inference_imgsz}px`;$('s-device').textContent=`${cfg.yolo_device}${cfg.cuda_available?' · CUDA':''}`;if(cfg.opc_endpoint)$('opc-endpoint').textContent=cfg.opc_endpoint;renderOpcMapping(cfg.opc_mapping||[]);if(!cfg.opc_available)msg('Vision app ready. OPC buttons are disabled because asyncua is not installed in this Python environment.','err')}}catch{}await refresh();setInterval(refresh,650)}init();
+</script>
+</body>
+</html>
