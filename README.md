@@ -18,7 +18,7 @@ data processing, Digital Twin technologies, and a web-based monitoring applicati
 
 ## Overview
 
-This repository accompanies the PhD thesis entitled:
+This repository accompanies the PhD thesis prepared by **Nessrine FARHAT**, entitled:
 
 > **Vision-Based Digital Twins for Manufacturing Systems: From Industrial Visual Perception to Simulation and Decision Support**
 
