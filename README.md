@@ -15,6 +15,7 @@ data processing, Digital Twin technologies, and a web-based monitoring applicati
   <img src="https://img.shields.io/badge/Communication-OPC%20UA-green">
   <img src="https://img.shields.io/badge/Application-Web%20Dashboard-purple">
 </p>
+
 ## Overview
 
 This repository accompanies the PhD thesis entitled:
