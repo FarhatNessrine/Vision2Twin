@@ -236,6 +236,13 @@ Run the Flask application:
 python app.py
 ```
 
+## License
+
+Copyright © 2026 Nessrine Farhat. All rights reserved.
+
+This repository is made available for academic and research purposes.  
+Commercial use, redistribution, or modification requires prior written permission.
+
 Then open the local address displayed in the terminal, typically:
 
 ```text
