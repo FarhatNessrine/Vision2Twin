@@ -80,7 +80,7 @@ They represent the visual variability encountered during actual deployment and a
 
 The associated dataset is intended to be made available separately.
 
-> > Dataset: [TTA: A Tidal Turbine Assembly Dataset for Industrial Computer Vision and Digital Twins](ZENODO_LINK)
+> > Dataset: [TTA: A Tidal Turbine Assembly Dataset for Industrial Computer Vision and Digital Twins](https://huggingface.co/datasets/NeFr25/TTA_Tidal_Turbine_Assembly_Visual_Dataset)
 
 ## Models
 
